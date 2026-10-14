@@ -10,39 +10,51 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
+pub const Fixed = @import("LockBytes/Fixed.zig");
+
 ptr: *anyopaque,
 vtable: *const VTable,
 
 pub const VTable = struct {
     /// Write any internal buffers out to the underlying storage.
-    flush: *const fn (*anyopaque) FlushError!void,
+    flush: *const fn (ctx: *anyopaque) FlushError!void = defaultFlush,
 
     /// Restrict access to a portion, or all, of the underlying storage. Allow
     /// ranges past the end. Return `error.InvalidFunction` for an unsupported
     /// `lock_type`.
-    lockRegion: *const fn (*anyopaque, offset: u64, len: u64, lock_type: LockType) LockRegionError!void,
+    lockRegion: *const fn (ctx: *anyopaque, offset: u64, len: u64, lock_type: LockType) LockRegionError!void = unsupportedLockRegion,
 
     /// Read up to `buffer.len` bytes at `offset` from the underlying storage.
     /// Set `n` even on error. Read short only at the end or on error.
-    readAt: *const fn (*anyopaque, buffer: []u8, offset: u64, n: *usize) ReadAtError!void,
+    readAt: *const fn (ctx: *anyopaque, buffer: []u8, offset: u64, n: *usize) ReadAtError!void,
 
     /// Truncate or extend the underlying storage. Extended bytes may be left
     /// undefined.
-    setSize: *const fn (*anyopaque, new_size: u64) SetSizeError!void,
+    setSize: *const fn (ctx: *anyopaque, new_size: u64) SetSizeError!void,
 
     /// Return information about the underlying storage. Allocate `Stat.name`
     /// with `alloc` unless `flag` is `.no_name`.
-    stat: *const fn (*anyopaque, alloc: Allocator, flag: StatFlag) StatError!Stat,
+    stat: *const fn (ctx: *anyopaque, alloc: Allocator, flag: StatFlag) StatError!Stat,
 
     /// Remove a restriction placed by `lockRegion`. Unlock only an exact match
     /// of `offset`, `len`, and `lock_type`.
-    unlockRegion: *const fn (*anyopaque, offset: u64, len: u64, lock_type: LockType) UnlockRegionError!void,
+    unlockRegion: *const fn (ctx: *anyopaque, offset: u64, len: u64, lock_type: LockType) UnlockRegionError!void = unsupportedUnlockRegion,
 
     /// Write `buffer` at `offset` to the underlying storage. Set `n` even on
     /// error. Extend the storage when writing past the end; the gap may be
     /// left undefined.
-    writeAt: *const fn (*anyopaque, buffer: []const u8, offset: u64, n: *usize) WriteAtError!void,
+    writeAt: *const fn (ctx: *anyopaque, buffer: []const u8, offset: u64, n: *usize) WriteAtError!void,
 };
+
+pub fn defaultFlush(_: *anyopaque) FlushError!void {}
+
+pub fn unsupportedLockRegion(_: *anyopaque, _: u64, _: u64, _: LockType) LockRegionError!void {
+    return error.InvalidFunction;
+}
+
+pub fn unsupportedUnlockRegion(_: *anyopaque, _: u64, _: u64, _: LockType) UnlockRegionError!void {
+    return error.InvalidFunction;
+}
 
 pub const FlushError = error{
     /// The caller doesn't have permission to edit the underlying storage.
@@ -188,3 +200,7 @@ pub const Stat = struct {
     atime: Io.Timestamp,
     locks_supported: std.EnumSet(LockType),
 };
+
+test {
+    _ = Fixed;
+}
