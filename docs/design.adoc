@@ -10,7 +10,7 @@
 :url-istream: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-istream
 :url-ilockbytes: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-ilockbytes
 :url-stgopenstorage: https://learn.microsoft.com/en-us/windows/win32/api/coml2api/nf-coml2api-stgopenstorage
-:url-stgopenstorageonilockbytes: https://learn.microsoft.com/en-us/windows/win32/api/coml2api/nf-coml2api-stgopenstorageonilockbytes
+:url-stgopenstorageonilockbytes: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-ilockbytes
 :url-istorage-enumelements: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-istorage-enumelements
 :url-istorage-openstorage: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-istorage-openstorage
 :url-istorage-openstream: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-istorage-openstream
@@ -73,6 +73,42 @@ Python, and {url-poi}[Apache POI] requires a JVM. Neither fits our application.
 {url-libgsf}[libgsf] pulls in GLib and GObject, and its licensing would make us
 re-think using MIT. It also doesn't aim to match Windows' reading behavior.
 Neither does the Rust {url-cfb-crate}[cfb] crate.
+
+== Naming
+
+We track Microsoft's naming. The general algorithm is to drop the leading 'I'.
+So, our LockBytes is their ILockBytes.
+
+=== Nouns
+
+Docfile:: Owns the LockBytes for the compound file and mediates access
+to the storage and streams within. The APIs provide the same affordances
+that IStorage and IStream do.
+
+LockBytes:: A file-like interface that is owned by the CFB reader for the
+duration of operation. It is logically contiguous, and provides byte-level
+random, seekable access. Doesn't need to be contiguous.
+
+Stream:: An inert capability handle that allows read and/or write to a
+structured storage stream.
+
+Storage:: An inert capability handle that allows resolving child entities.
+For linux people, a dirfd.
+
+Cfb:: The concrete implementation of MS-CFB that provides low-level
+access to the data. This is used by Docfile.
+
+=== Tying them together
+
+[source,zig]
+----
+const doc : Docfile = .init(.open("2011-results.doc"));
+const root : Storage = doc.rootStorage();
+const child : Storage = try doc.openStorage(root, L"SomeStorage");
+const stream : Stream = try doc.openStream(child, L"SomeStream");
+
+var reader = try doc.reader(stream, buffer);
+----
 
 == Layers
 
