@@ -1,0 +1,13 @@
+.{
+    .name = .docfile,
+    .version = "0.0.0",
+    .fingerprint = 0x687eee96743c9f53,
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE",
+    },
+}
