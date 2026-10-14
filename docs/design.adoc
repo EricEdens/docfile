@@ -9,12 +9,34 @@
 :url-istorage: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-istorage
 :url-istream: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-istream
 :url-ilockbytes: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-ilockbytes
+:url-stgopenstorage: https://learn.microsoft.com/en-us/windows/win32/api/coml2api/nf-coml2api-stgopenstorage
+:url-stgopenstorageonilockbytes: https://learn.microsoft.com/en-us/windows/win32/api/coml2api/nf-coml2api-stgopenstorageonilockbytes
+:url-istorage-enumelements: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-istorage-enumelements
+:url-istorage-openstorage: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-istorage-openstorage
+:url-istorage-openstream: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-istorage-openstream
+:url-isequentialstream-read: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-isequentialstream-read
+:url-ilockbytes-readat: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-ilockbytes-readat
+:url-statstg: https://learn.microsoft.com/en-us/windows/win32/api/objidl/ns-objidl-statstg
 :url-fib-example: https://learn.microsoft.com/en-us/answers/questions/1282085/fetching-the-fib-of-a-doc-file
 :url-olefile: https://github.com/decalage2/olefile
 :url-poi: https://poi.apache.org/components/poifs/
 :url-poi-api: https://poi.apache.org/apidocs/dev/org/apache/poi/poifs
 :url-libgsf: https://gitlab.gnome.org/GNOME/libgsf
 :url-cfb-crate: https://crates.io/crates/cfb
+:url-libolecf: https://github.com/libyal/libolecf
+:url-wine: https://gitlab.winehq.org/wine/wine
+:url-reactos: https://github.com/reactos/reactos
+:url-pole: https://github.com/catlan/pole
+:url-mscfb: https://github.com/richardlehane/mscfb
+:url-go-cfb: https://github.com/abemedia/go-cfb
+:url-msitools: https://github.com/GNOME/msitools
+:url-sot: https://git.libreoffice.org/core
+:url-catdoc: https://github.com/vbwagner/catdoc
+:url-libxls: https://github.com/libxls/libxls
+:url-7zip: https://github.com/ip7z/7zip
+:url-openmcdf: https://github.com/openmcdf/openmcdf
+:url-sheetjs-cfb: https://github.com/SheetJS/js-cfb
+:url-compoundfiles: https://github.com/waveform-computing/compoundfiles
 
 = Design
 
@@ -24,11 +46,9 @@ implementation.
 
 == Goals
 
-[.lead]
-We're building a file explorer for Windows, Linux, and macOS.
-
-Several of the file formats we want to read are {url-ms-cfb}[MS-CFB]
-containers under the hood:
+We're building a file explorer for Windows, Linux, and macOS. Several of the
+file formats we want to read are {url-ms-cfb}[MS-CFB] containers under the
+hood:
 
 * {url-ms-doc}[Word 97-2003 documents] (`.doc`).
 * {url-ms-xls}[Excel 97-2003 workbooks] (`.xls`).
@@ -54,42 +74,84 @@ Python, and {url-poi}[Apache POI] requires a JVM. Neither fits our application.
 re-think using MIT. It also doesn't aim to match Windows' reading behavior.
 Neither does the Rust {url-cfb-crate}[cfb] crate.
 
-That last point is what makes this project interesting. We want the same file
-to produce the same reading behavior on all three platforms, with Windows as
-our reference. What does that ask of a reader? To answer that, it helps to look
-at the file from a few different levels.
-
 == Layers
 
-[cols="1,1,1,1,1,1", options="header"]
+[cols="1,1,2,2", options="header"]
 |===
-|Layer |{url-compound-files}[Windows] |{url-olefile}[olefile]
-|{url-poi}[Apache POI] |{url-libgsf}[libgsf] |{url-cfb-crate}[Rust cfb]
+|Implementation |IStream |Forensics |LockBytes
 
-|Structured storage
-|{url-istorage}[IStorage], {url-istream}[IStream]
-|https://olefile.readthedocs.io/en/stable/olefile.html[OleFileIO]:
-`listdir`, `openstream`
-|{url-poi-api}/filesystem/DirectoryEntry.html[DirectoryEntry],
-{url-poi-api}/filesystem/DocumentInputStream.html[DocumentInputStream]
-|https://gnome.pages.gitlab.gnome.org/libgsf/api/gsf-MS-OLE2.html[GsfInfileMSOle],
-`GsfInfile`, `GsfInput`
-|https://docs.rs/cfb/latest/cfb/[CompoundFile, Entry, Stream]
+|{url-compound-files}[Windows]
+|{url-istream}[`IStream`]
+|None
+|{url-stgopenstorageonilockbytes}[`ILockBytes`]
 
-|CFB internals
-| x
-|`getsect`, `loadfat`, `loaddirectory`
-|{url-poi-api}/filesystem/POIFSStream.html[POIFSStream],
-{url-poi-api}/storage/HeaderBlock.html[HeaderBlock],
-{url-poi-api}/storage/BATBlock.html[BATBlock]
-| x
-| x
+|{url-olefile}[olefile]
+|https://olefile.readthedocs.io/en/stable/olefile.html#olefile.OleFileIO.openstream[`BytesIO`]
+|https://olefile.readthedocs.io/en/stable/olefile.html#olefile.OleFileIO.getsect[Sectors, FAT, MiniFAT, directory]
+|https://olefile.readthedocs.io/en/stable/olefile.html#olefile.OleFileIO[File-like]
 
-|Owned bytes that don't require contiguity 
-|{url-ilockbytes}[ILockBytes]: `ReadAt`, `WriteAt`
-|File-like backend: `read`, `seek`, `tell`
-|{url-poi-api}/nio/DataSource.html[DataSource]
-|https://gnome.pages.gitlab.gnome.org/libgsf/api/gsf-Input-from-unstructured-files.html[GsfInput]:
-`gsf_input_read`, `gsf_input_seek`
-|Backend traits: `Read`, `Seek` (`Write` for updates)
+|{url-poi}[Apache POI]
+|{url-poi-api}/filesystem/DocumentInputStream.html[`DocumentInputStream`]
+|{url-poi-api}/storage/HeaderBlock.html[Header, FAT, directory]
+|{url-poi-api}/filesystem/POIFSFileSystem.html[`FileChannel`]
+
+|{url-libgsf}[libgsf]
+|https://gnome.pages.gitlab.gnome.org/libgsf/api/gsf-Input-from-unstructured-files.html[`GsfInput`]
+|None
+|https://github.com/GNOME/libgsf/blob/master/gsf/gsf-input-impl.h[`GsfInputClass`]
+
+|{url-cfb-crate}[Rust cfb]
+|https://github.com/mdsteele/rust-cfb/blob/master/src/internal/stream.rs#L164[`Stream`]
+|None
+|https://docs.rs/cfb/0.15.0/cfb/struct.CompoundFile.html#method.open[`Read + Seek`]
+
+|{url-libolecf}[libolecf]
+|{url-libolecf}/blob/main/include/libolecf.h.in#L528[`libolecf_item_t`]
+|{url-libolecf}/blob/main/include/libolecf.h.in#L323[Unallocated blocks]
+|https://github.com/libyal/libbfio/blob/main/include/libbfio.h.in#L119[Read, seek, size callbacks]
+
+|{url-pole}[POLE (catlan variant)]
+|{url-pole}/blob/master/pole.h#L130[`Stream`]
+|{url-pole}/blob/master/pole.h#L185[Header, FAT, directory]
+|{url-pole}/blob/master/pole.h#L59[Whole file in memory]
+
+|{url-mscfb}[Go mscfb]
+|https://pkg.go.dev/github.com/richardlehane/mscfb[`Reader`]
+|https://pkg.go.dev/github.com/richardlehane/mscfb#Reader.Debug[Sector size, directory and MiniFAT locations]
+|https://pkg.go.dev/github.com/richardlehane/mscfb[`io.ReaderAt`]
+
+|{url-go-cfb}[Go cfb (abemedia)]
+|https://pkg.go.dev/github.com/abemedia/go-cfb#Stream.Open[`Stream`]
+|None
+|https://pkg.go.dev/github.com/abemedia/go-cfb#NewReader[`io.ReaderAt`]
+
+|{url-sot}[LibreOffice sot]
+|https://github.com/LibreOffice/core/blob/master/include/sot/storage.hxx#L44[`SotStorageStream`]
+|None
+|https://github.com/LibreOffice/core/blob/master/include/tools/stream.hxx#L194[`SvLockBytes`]
+
+|{url-libxls}[libxls]
+|{url-libxls}/blob/master/include/libxls/ole.h#L185[`OLE2Stream`]
+|{url-libxls}/blob/master/include/libxls/ole.h#L61[Header, FAT, MiniFAT, directory]
+|{url-libxls}/blob/master/include/libxls/ole.h#L187[Owned `FILE *` or whole file in memory]
+
+|{url-7zip}[7-Zip Compound]
+|{url-7zip}/blob/main/CPP/7zip/Archive/IArchive.h#L269[`ISequentialInStream`]
+|None
+|{url-7zip}/blob/main/CPP/7zip/IStream.h#L98[`IInStream`]
+
+|{url-openmcdf}[OpenMcdf v3]
+|{url-openmcdf}/blob/main/OpenMcdf/CfbStream.cs#L80[`CfbStream`]
+|None
+|{url-openmcdf}/blob/main/OpenMcdf/RootStorage.cs#L240[.NET `Stream`]
+
+|{url-sheetjs-cfb}[SheetJS cfb]
+|{url-sheetjs-cfb}/blob/master/types/index.d.ts#L65[`content` buffer]
+|{url-sheetjs-cfb}/blob/master/types/index.d.ts#L104[Header, sectors]
+|{url-sheetjs-cfb}/blob/master/types/index.d.ts#L51[Whole file in memory]
+
+|{url-compoundfiles}[Python compoundfiles]
+|https://compound-files.readthedocs.io/en/latest/api.html#compoundfiles.CompoundFileStream.read[`CompoundFileStream`]
+|None
+|https://compound-files.readthedocs.io/en/latest/api.html#compoundfiles.CompoundFileReader[File-like]
 |===
