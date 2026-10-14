@@ -1,0 +1,37 @@
+= docfile
+:url-ms-cfb: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/53989ce4-7b05-4f8d-829b-d08d6148375b
+:url-compound-files: https://learn.microsoft.com/en-us/windows/win32/stg/structured-storage-start-page
+
+A portable {url-ms-cfb}[MS-CFB] library.
+
+MS-CFB is a _container format_: it lets an application write multiple named
+streams to a single file. It's the format underneath `.doc`, `.xls`, `.ppt`,
+`.msg`, and `.msi`.
+
+This package will provide reading and writing, with the goal of matching the
+behavior of Microsoft's {url-compound-files}[structured storage API].
+
+*docfile* is a nod to the format's history. Read the spec and you get the
+sense that MS had a bunch of names for it: _Microsoft Compound File Binary
+(CFB) file format, also known as the Object Linking and Embedding (OLE) or
+Component Object Model (COM)_. The engineer's name, I'd like to think, was
+docfile. It's the first four bytes of the magic number, `D0 CF 11 E0`. It's
+the initializer, `StgCreateDocfile`.
+
+== Building
+
+Requires Zig 0.17.0.
+
+[source,sh]
+----
+zig build test
+----
+
+== Status
+
+See link:docs/design.adoc[] for the intended arc, and how it fits the file
+explorer it's being built for.
+
+== License
+
+MIT.
