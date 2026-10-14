@@ -1,0 +1,95 @@
+:url-ms-cfb: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/53989ce4-7b05-4f8d-829b-d08d6148375b
+:url-ms-doc: https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-doc/ccd7b486-7881-484c-a137-51170af7cc22
+:url-ms-xls: https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-xls/cd03cb5f-ca02-4934-a391-bb674cb8aa06
+:url-ms-ppt: https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-ppt/6be79dde-33c1-4c1b-8ccc-4b2301c08662
+:url-ms-oxmsg: https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxmsg/cd44ec9f-01bb-4ea3-b335-87cfeb827594
+:url-msi: https://learn.microsoft.com/en-us/visualstudio/extensibility/internals/windows-installer-basics
+:url-msp: https://devblogs.microsoft.com/setup/windows-installer-cache/
+:url-compound-files: https://learn.microsoft.com/en-us/windows/win32/stg/compound-files
+:url-istorage: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-istorage
+:url-istream: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-istream
+:url-ilockbytes: https://learn.microsoft.com/en-us/windows/win32/api/objidl/nn-objidl-ilockbytes
+:url-fib-example: https://learn.microsoft.com/en-us/answers/questions/1282085/fetching-the-fib-of-a-doc-file
+:url-olefile: https://github.com/decalage2/olefile
+:url-poi: https://poi.apache.org/components/poifs/
+:url-poi-api: https://poi.apache.org/apidocs/dev/org/apache/poi/poifs
+:url-libgsf: https://gitlab.gnome.org/GNOME/libgsf
+:url-cfb-crate: https://crates.io/crates/cfb
+
+= Design
+
+[abstract]
+A portable MS-CFB reader that behaves like Windows' compound file
+implementation.
+
+== Goals
+
+[.lead]
+We're building a file explorer for Windows, Linux, and macOS.
+
+Several of the file formats we want to read are {url-ms-cfb}[MS-CFB]
+containers under the hood:
+
+* {url-ms-doc}[Word 97-2003 documents] (`.doc`).
+* {url-ms-xls}[Excel 97-2003 workbooks] (`.xls`).
+* {url-ms-ppt}[PowerPoint 97-2003 presentations] (`.ppt`).
+* {url-ms-oxmsg}[Outlook items] (`.msg`).
+* {url-msi}[Windows Installer packages] (`.msi`).
+* {url-msp}[Windows Installer patches] (`.msp`).
+
+If we only cared about Windows, this part would be easy. We'd use
+{url-compound-files}[Microsoft's compound file implementation] through
+{url-istorage}[IStorage], {url-istream}[IStream], _et al_. Microsoft even has
+an {url-fib-example}[example for Word 97-2003 files] that shows how: open the
+storage, open the `WordDocument` stream, and read it through `IStream`. We'd
+get the _same_ implementation Word uses, with very little work on our side.
+
+But we also want to open those files on Linux and macOS. That leaves us looking
+for a portable reader, and there are already several to choose from. So why
+write _another_ one?
+
+Some of them bring a whole runtime along. {url-olefile}[olefile] requires
+Python, and {url-poi}[Apache POI] requires a JVM. Neither fits our application.
+{url-libgsf}[libgsf] pulls in GLib and GObject, and its licensing would make us
+re-think using MIT. It also doesn't aim to match Windows' reading behavior.
+Neither does the Rust {url-cfb-crate}[cfb] crate.
+
+That last point is what makes this project interesting. We want the same file
+to produce the same reading behavior on all three platforms, with Windows as
+our reference. What does that ask of a reader? To answer that, it helps to look
+at the file from a few different levels.
+
+== Layers
+
+[cols="1,1,1,1,1,1", options="header"]
+|===
+|Layer |{url-compound-files}[Windows] |{url-olefile}[olefile]
+|{url-poi}[Apache POI] |{url-libgsf}[libgsf] |{url-cfb-crate}[Rust cfb]
+
+|Structured storage
+|{url-istorage}[IStorage], {url-istream}[IStream]
+|https://olefile.readthedocs.io/en/stable/olefile.html[OleFileIO]:
+`listdir`, `openstream`
+|{url-poi-api}/filesystem/DirectoryEntry.html[DirectoryEntry],
+{url-poi-api}/filesystem/DocumentInputStream.html[DocumentInputStream]
+|https://gnome.pages.gitlab.gnome.org/libgsf/api/gsf-MS-OLE2.html[GsfInfileMSOle],
+`GsfInfile`, `GsfInput`
+|https://docs.rs/cfb/latest/cfb/[CompoundFile, Entry, Stream]
+
+|CFB internals
+| x
+|`getsect`, `loadfat`, `loaddirectory`
+|{url-poi-api}/filesystem/POIFSStream.html[POIFSStream],
+{url-poi-api}/storage/HeaderBlock.html[HeaderBlock],
+{url-poi-api}/storage/BATBlock.html[BATBlock]
+| x
+| x
+
+|Owned bytes that don't require contiguity 
+|{url-ilockbytes}[ILockBytes]: `ReadAt`, `WriteAt`
+|File-like backend: `read`, `seek`, `tell`
+|{url-poi-api}/nio/DataSource.html[DataSource]
+|https://gnome.pages.gitlab.gnome.org/libgsf/api/gsf-Input-from-unstructured-files.html[GsfInput]:
+`gsf_input_read`, `gsf_input_seek`
+|Backend traits: `Read`, `Seek` (`Write` for updates)
+|===
