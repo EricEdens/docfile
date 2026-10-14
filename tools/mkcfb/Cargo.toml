@@ -1,0 +1,9 @@
+[package]
+name = "mkcfb"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+cfb = "0.15"
+sha2 = "0.11"
